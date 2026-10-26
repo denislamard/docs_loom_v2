@@ -39,7 +39,7 @@ La formation s'appuie sur [loom_v2](https://github.com/denislamard/loom_v2), un 
 
 13. **Observabilité et rejeu** : traces, OpenTelemetry, masquage, rejeu de runs
 14. **Qualité : évals et non-régression** : suites d'évals, doublures, corpus tiré du journal
-15. **Sources d'outils et sandbox forge** : outils fournis par un paquet, microVM Firecracker
+15. **Sources d'outils et sandbox forge** : outils fournis par un paquet, microVM Firecracker, classeur Excel avec `loom.excel`
 
 Pages annexes : installation et premier run, référence CLI et configuration, pièges et dépannage, glossaire, matrice des 100 fonctions couvertes.
 
@@ -49,9 +49,9 @@ Pages annexes : installation et premier run, référence CLI et configuration, p
 - [**uv**](https://docs.astral.sh/uv/) (le module 1 l'installe si besoin)
 - Rien d'autre pour commencer : pas de clé d'API, Python est installé par uv, et les exercices tournent par défaut sur un modèle simulé, ce qui rend les sorties reproductibles
 
-Quelques exercices demandent une ressource en plus, et chaque module le signale : Postgres, Redis ou RabbitMQ (un conteneur Docker suffit), le serveur MCP loom-notes, un collecteur OpenTelemetry, ou KVM pour la sandbox du module 15.
+Quelques exercices demandent une ressource en plus, et chaque module le signale : Postgres, Redis ou RabbitMQ (un conteneur Docker suffit), le serveur MCP loom-notes, un collecteur OpenTelemetry, KVM pour la sandbox du module 15, ou LibreOffice pour vérifier les formules d'un classeur (exercice 15.9).
 
-La formation est écrite pour `loom-ia` 2.0.11 et suivantes, avec Python 3.14.
+La formation est écrite pour `loom-ia` 2.0.11 et suivantes (2.0.13 pour l'exercice 15.9, `loom.excel`), avec Python 3.14.
 
 ## Lire en local
 

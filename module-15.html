@@ -86,13 +86,13 @@
 <main id="contenu">
 <div class="page">
 <h1>Module 15 : Sources d'outils et sandbox forge</h1>
-<p class="chapeau">Jusqu'ici, un outil était une fonction du projet (module 2) ou un serveur MCP (module 5). Il existe une troisième voie : une <strong>source d'outils</strong>, un paquet Python installé qui fournit ses outils à chaque run. Jean l'utilise pour partager un calendrier des jours ouvrés entre ses projets. Loom livre aussi sa propre source, <code>forge</code> : l'agent y écrit lui-même un petit outil, que loom exécute dans une machine virtuelle isolée, jamais sur le serveur de Jean.</p>
+<p class="chapeau">Jusqu'ici, un outil était une fonction du projet (module 2) ou un serveur MCP (module 5). Il existe une troisième voie : une <strong>source d'outils</strong>, un paquet Python installé qui fournit ses outils à chaque run. Jean l'utilise pour partager un calendrier des jours ouvrés entre ses projets. Loom livre aussi sa propre source, <code>forge</code> : l'agent y écrit lui-même un petit outil, que loom exécute dans une machine virtuelle isolée, jamais sur le serveur de Jean. Pour finir, l'assistant reçoit un outil fourni par loom lui-même, <code>loom.excel</code>, et prépare pour le comptable le suivi des devis en classeur Excel.</p>
 
 <dl class="fiche-agent">
 <dt>Agent</dt><dd><code>assistant</code>, dans le dossier <code>plomberie-dupont/</code>, et un agent <code>atelier</code> dans le sous-projet <code>atelier/</code></dd>
 <dt>Départ</dt><dd>la fin du <a href="module-14.html#bilan">module 14</a> : l'agent a une suite d'évaluations, des tests pytest et des journaux de référence</dd>
-<dt>Arrivée</dt><dd>l'assistant consulte le calendrier de l'entreprise, fourni par un paquet ; l'atelier est prêt à forger des outils dès qu'une VM est disponible</dd>
-<dt>Fonctions</dt><dd><a class="fn" href="matrice.html#D12">D12</a><a class="fn" href="matrice.html#D9">D9</a></dd>
+<dt>Arrivée</dt><dd>l'assistant consulte le calendrier de l'entreprise, fourni par un paquet, et prépare le suivi des devis en classeur Excel ; l'atelier est prêt à forger des outils dès qu'une VM est disponible</dd>
+<dt>Fonctions</dt><dd><a class="fn" href="matrice.html#D12">D12</a><a class="fn" href="matrice.html#D9">D9</a><a class="fn" href="matrice.html#D13">D13</a></dd>
 </dl>
 
 <details class="depart"><summary>Point de départ : les fichiers au début du module</summary>
@@ -2365,18 +2365,245 @@ Configuration : Agent 'atelier', source 'forge' (loom-ia 2.0.11, loom_ia.adapter
 </ul>
 </section>
 
+<!-- ===================================================================== -->
+<section class="exo" id="ex-15-9">
+<h3><span class="exo-num">15.9</span> Un classeur Excel pour le comptable</h3>
+<p class="fns"><a class="fn" href="matrice.html#D13">D13</a></p>
+
+<h4>Pourquoi</h4>
+<p>Chaque fin de mois, le comptable demande à Jean le point sur ses devis : la liste, le total, ce qui est signé et ce qu'il peut encore espérer signer. Jean exporte ses devis de son logiciel en CSV, puis refait le tableau à la main dans Excel. Loom fournit un outil pour ça, comme <code>loom.fetch_page</code> au <a href="module-01.html#ex-1-8">module 1</a> : <code>loom.excel</code>. Le modèle décrit le classeur (les onglets, les colonnes et leur type, les formules), et l'outil le met en forme : police, couleurs, formats des montants et des dates, largeurs, volets figés, filtre. Le modèle ne choisit jamais l'apparence, si bien qu'un classeur ressemble au précédent d'un mois à l'autre.</p>
+
+<h4>Mise en place</h4>
+<p><code>loom.excel</code> arrive avec loom-ia 2.0.13, et s'appuie sur la bibliothèque openpyxl, apportée par l'extra <code>office</code>. Ajoutez l'extra et relevez la version minimale :</p>
+<pre><code><span class="p">$ </span>uv add "loom-ia[anthropic,crypto,http,mcp,office,openai,otel,postgres,rabbitmq,redis,sqlite]&gt;=2.0.13"</code></pre>
+<figure class="code"><figcaption>pyproject.toml</figcaption>
+<pre><code>[project]
+name = "plomberie-dupont"
+version = "0.1.0"
+requires-python = "&gt;=3.14"
+dependencies = [
+    "calendrier-artisan",
+<span class="aj">    "loom-ia[anthropic,crypto,http,mcp,office,openai,otel,postgres,rabbitmq,redis,sqlite]&gt;=2.0.13",</span>]
+…</code></pre></figure>
+<p class="legende-aj"><span></span>ligne modifiée par <code>uv add</code></p>
+<p>Sans l'extra, l'agent ne se monte pas, et <code>loom validate</code> dit lequel installer : <code>dépendance 'openpyxl' absente (installer l'extra : loom-ia[office])</code>.</p>
+<p>Rangez l'export du logiciel de devis dans un dossier <code>donnees/</code>, et créez le dossier où l'outil écrira ses classeurs :</p>
+<pre><code><span class="p">$ </span>mkdir donnees sortie</code></pre>
+<figure class="code"><figcaption>donnees/devis-septembre.csv</figcaption>
+<pre><code>Numéro;Date;Client;Objet;Montant HT;Statut
+D-2026-042;03/09/2026;Mme Martin;Remplacement du chauffe-eau;1 533,33;envoyé
+D-2026-043;05/09/2026;M. Petit;Réparation d'une fuite sous évier;185,00;accepté
+D-2026-044;08/09/2026;SCI Les Tilleuls;Remplacement d'une colonne d'eau;6 420,00;envoyé
+D-2026-045;11/09/2026;Mme Faure;Pose d'un WC suspendu;890,00;accepté
+D-2026-046;15/09/2026;Boulangerie Roux;Mise aux normes de la cuisine;3 275,80;refusé
+D-2026-047;17/09/2026;Mme Lambert;Douche à l'italienne;3 120,00;envoyé
+D-2026-050;20/09/2026;M. Bernard;Détartrage de la chaudière;150,00;accepté
+D-2026-052;28/09/2026;M. Chevalier;Remplacement de la robinetterie;325,50;envoyé</code></pre></figure>
+<p>C'est un export à la française : <code>;</code> entre les colonnes, une virgule décimale et une espace pour les milliers, des dates <code>jj/mm/aaaa</code>. L'outil le lit tel quel.</p>
+<p>Donnez l'outil à l'assistant, avec les deux dossiers qu'il a le droit d'utiliser :</p>
+<figure class="code"><figcaption>agents/assistant.yaml (seule la liste <code>tools</code> change ; le reste du fichier est celui de l'exercice 15.2)</figcaption>
+<pre><code>tools:
+  - python: loom.fetch_page
+  …
+  - source: calendrier
+<span class="aj">  - python: loom.excel</span><span class="aj">    folders:</span><span class="aj">      - name: donnees</span><span class="aj">        path: donnees</span><span class="aj">        rights: [read]</span><span class="aj">      - name: sortie</span><span class="aj">        path: sortie</span><span class="aj">        rights: [write]</span></code></pre></figure>
+<p class="legende-aj"><span></span>lignes ajoutées</p>
+<div class="tableau"><table class="lignes">
+<tbody>
+<tr><td><code>python: loom.excel</code></td><td>Un outil fourni par loom ; le modèle le voit sous le nom <code>excel</code>.</td></tr>
+<tr><td><code>folders:</code></td><td>Les seuls dossiers que l'outil peut atteindre. Le modèle désigne un fichier par <code>&lt;dossier&gt;/&lt;chemin&gt;</code> (<code>donnees/devis-septembre.csv</code>) et ne voit jamais le chemin réel. Un chemin relatif se rapporte au dossier de <code>loom.yaml</code>.</td></tr>
+<tr><td><code>rights: [read]</code></td><td>L'outil lit les exports de <code>donnees/</code>, sans pouvoir y écrire.</td></tr>
+<tr><td><code>rights: [write]</code></td><td>L'outil crée des classeurs dans <code>sortie/</code>. Il ne remplace jamais un classeur existant : il faudrait le droit <code>overwrite</code>, qui demande par défaut l'accord de Jean (<a href="module-08.html#ex-8-1">module 8</a>).</td></tr>
+</tbody>
+</table></div>
+<p>Les dossiers sont ceux de la Plomberie Dupont. Le Chauffage Martin, qui partage l'agent (<a href="module-12.html">module 12</a>), ne doit ni lire les exports de Jean ni écrire dans son dossier : retirez-lui l'outil.</p>
+<figure class="code"><figcaption>loom.yaml (le client <code>martin-chauffage</code>)</figcaption>
+<pre><code>    tools_deny:
+      - catalogue__rechercher_article
+      - catalogue__prix_article
+      - catalogue__stock_article
+      - traduire
+<span class="aj">      - excel</span></code></pre></figure>
+<p class="legende-aj"><span></span>ligne ajoutée</p>
+<p>Dites au modèle quand s'en servir :</p>
+<figure class="code"><figcaption>prompts/system.md (la fin du fichier)</figcaption>
+<pre><code>…
+Si le client joint une photo, demande sa description au rôle `decrire_photo`.
+Pour un client anglophone, confie la traduction à l'outil `traduire`.
+<span class="aj">Pour un suivi à garder (devis du mois, totaux), écris un classeur Excel avec</span><span class="aj">l'outil `excel` dans le dossier sortie, à partir des exports du dossier donnees.</span></code></pre></figure>
+<p class="legende-aj"><span></span>lignes ajoutées</p>
+<p>Enfin, ajoutez au script de <code>SIMULE</code> la scène du suivi, à la suite de celle du calendrier. C'est la description qu'un vrai modèle enverrait à l'outil :</p>
+<figure class="code"><figcaption>loom.yaml (le script de SIMULE)</figcaption>
+<pre><code>          text: "Non : le 11 novembre 2026 est férié (Armistice). La relance pourra partir le jeudi 12 novembre."
+<span class="aj">        # Le suivi des devis du mois, en classeur Excel (module 15)</span><span class="aj">        - with_text: suivi des devis</span><span class="aj">          text: J'écris le classeur de suivi.</span><span class="aj">          tool_calls:</span><span class="aj">            - name: excel</span><span class="aj">              arguments:</span><span class="aj">                path: sortie/suivi-devis-septembre.xlsx</span><span class="aj">                sheets:</span><span class="aj">                  - name: Devis</span><span class="aj">                    columns:</span><span class="aj">                      - {header: Numéro}</span><span class="aj">                      - {header: Date, type: date}</span><span class="aj">                      - {header: Client}</span><span class="aj">                      - {header: Objet}</span><span class="aj">                      - {header: Montant HT, type: montant_eur}</span><span class="aj">                      - {header: Statut}</span><span class="aj">                    data: {path: donnees/devis-septembre.csv}</span><span class="aj">                    totals: {Montant HT: somme}</span><span class="aj">                  - name: Synthèse</span><span class="aj">                    columns:</span><span class="aj">                      - {header: Indicateur}</span><span class="aj">                      - {header: Valeur, type: montant_eur}</span><span class="aj">                    rows:</span><span class="aj">                      - cells: [Montant HT accepté, '=SUMIF(Devis!F2:F9,"accepté",Devis!E2:E9)']</span><span class="aj">                      - cells: [Montant HT en attente, '=SUMIF(Devis!F2:F9,"envoyé",Devis!E2:E9)']</span><span class="aj">                      - cells: [CA HT espéré, "=B3*'Hypothèses'!$B$2"]</span><span class="aj">                        role: total</span><span class="aj">                      - cells: [Objectif HT du mois, null]</span><span class="aj">                        role: saisie</span><span class="aj">                  - name: Hypothèses</span><span class="aj">                    columns:</span><span class="aj">                      - {header: Paramètre}</span><span class="aj">                      - {header: Valeur, type: pourcentage}</span><span class="aj">                    rows:</span><span class="aj">                      - cells: [Taux de signature des devis envoyés, 0.4]</span><span class="aj">                        role: hypothese</span><span class="aj">                        note: "Source : estimation de Jean Dupont, sur les devis de 2025"</span><span class="aj">        - with_text: suivi des devis</span><span class="aj">          text: "Le suivi de septembre est dans sortie/suivi-devis-septembre.xlsx : les 8 devis, leur total, et la synthèse avec le chiffre d'affaires espéré."</span></code></pre></figure>
+<p class="legende-aj"><span></span>lignes ajoutées</p>
+<div class="tableau"><table class="lignes">
+<tbody>
+<tr><td><code>path: sortie/…xlsx</code></td><td>Le classeur à écrire, dans un dossier qui a le droit <code>write</code>.</td></tr>
+<tr><td><code>columns</code></td><td>Chaque colonne a un en-tête et un <strong>type</strong> : <code>texte</code> (par défaut), <code>entier</code>, <code>decimal</code>, <code>montant_eur</code>, <code>pourcentage</code>, <code>date</code>… Le type décide du format : « 1 533,33 € », « 03/09/2026 ». L'en-tête ne répète pas l'unité que le format affiche déjà : « Montant HT », pas « Montant HT (€) ».</td></tr>
+<tr><td><code>data: {path: …}</code></td><td>Les lignes viennent d'un fichier <code>.csv</code> ou <code>.json</code>, lu par l'outil : le modèle ne recopie pas les devis dans son appel. Pour un petit tableau, <code>rows</code> donne les lignes directement (200 au plus).</td></tr>
+<tr><td><code>totals: {Montant HT: somme}</code></td><td>Une ligne « Total » en bas de l'onglet, avec la formule <code>=SUM(…)</code> écrite par l'outil. Aussi : <code>moyenne</code>, <code>nombre</code>, <code>min</code>, <code>max</code>.</td></tr>
+<tr><td><code>'=SUMIF(…)'</code></td><td>Une formule. Elle s'écrit <strong>en anglais</strong>, arguments séparés par des virgules ; un onglet dont le nom a un accent se cite entre apostrophes : <code>'Hypothèses'!$B$2</code>. Excel la recalcule à l'ouverture.</td></tr>
+<tr><td><code>role: hypothese</code> et <code>note</code></td><td>Un paramètre dont dépendent les formules, ici le taux de signature : en bleu sur fond jaune, avec sa source en commentaire de cellule. La source est obligatoire.</td></tr>
+<tr><td><code>role: saisie</code></td><td>Une cellule que Jean remplira lui-même, en bleu sur fond jaune pâle. Une légende sous le tableau rappelle les couleurs.</td></tr>
+<tr><td><code>role: total</code></td><td>Une ligne en gras, séparée par un trait.</td></tr>
+</tbody>
+</table></div>
+<p>Le classeur n'a pas sa place dans le dépôt : ajoutez <code>sortie/</code> à <code>.gitignore</code>.</p>
+<figure class="code"><figcaption>.gitignore</figcaption>
+<pre><code>.env
+data/
+__pycache__/
+boite-envoi/
+<span class="aj">sortie/</span></code></pre></figure>
+<p class="legende-aj"><span></span>ligne ajoutée</p>
+
+<h4>Exécution</h4>
+<pre><code><span class="p">$ </span>loom validate | grep -E 'Fournis|outil excel|outils retirés|assistant :'
+Fournis    : loom.excel, loom.fetch_page
+    assistant : modèle SIMULE, 6 outil(s) Python, rôle rediger_relance (REDACTEUR), rôle decrire_photo (VISION), sous-agent traduire (traducteur)
+      outil excel : donnees → /home/jean/plomberie-dupont/donnees : read
+      outil excel : sortie → /home/jean/plomberie-dupont/sortie : write
+      outil excel : fuseau : Europe/Paris
+      outil excel : recalcul : non
+    outils retirés : catalogue__rechercher_article, catalogue__prix_article, catalogue__stock_article, traduire, excel
+    assistant : modèle SIMULE (SIMULE_MARTIN pour ce client), 6 outil(s) Python, rôle rediger_relance (REDACTEUR), rôle decrire_photo (VISION), sous-agent traduire (traducteur)</code></pre>
+<p>Pour la Plomberie Dupont, <code>validate</code> montre les dossiers de l'outil, avec leurs chemins réels et leurs droits, le fuseau horaire (une date-heure qui en porte un est convertie en heure de Paris, Excel ne connaissant pas les fuseaux) et le recalcul, vu plus bas. Pour le Chauffage Martin, <code>excel</code> est parmi les outils retirés.</p>
+<pre><code><span class="p">$ </span>loom run assistant "Prépare le suivi des devis de septembre pour le comptable." --session suivi-septembre
+Le suivi de septembre est dans sortie/suivi-devis-septembre.xlsx : les 8 devis, leur total, et la synthèse avec le chiffre d'affaires espéré.
+
+Statut     : completed · itérations : 2 · tokens : 7629/359 · coût : 0.0283 $
+Run        : 01a17840-7b50-7047-8149-027783d45e2f
+<span class="p">$ </span>loom inspect 01a17840-7b50-7047-8149-027783d45e2f --session suivi-septembre
+…
+  étape 1
+    modèle SIMULE (fake-1) (main) — 3 ms, 3541 → 299 tokens, 0.015108 $
+      · répond    : J'écris le classeur de suivi.
+      · appelle   : excel({"path": "sortie/suivi-devis-septembre.xlsx", "sheets": [{"name": "Devis", "columns": [{"he…
+  étape 2
+    outil excel — 30 ms
+      · arguments : {"path": "sortie/suivi-devis-septembre.xlsx", "sheets": [{"name": "Devis", "columns": [{"header":…
+      · résultat  : {"path": "sortie/suivi-devis-septembre.xlsx", "bytes": 8999, "written": true, "replaced": false, …
+…
+<span class="p">$ </span>ls sortie
+suivi-devis-septembre.xlsx</code></pre>
+<p>Le modèle n'a envoyé qu'une description ; l'outil lui a rendu un résumé, jamais le contenu du classeur. Avec <code>--full</code>, <code>loom inspect</code> le montre en entier :</p>
+<pre><code><span class="p">$ </span>loom inspect 01a17840-7b50-7047-8149-027783d45e2f --session suivi-septembre --full | grep résultat
+      · résultat  : {"path": "sortie/suivi-devis-septembre.xlsx", "bytes": 8999, "written": true, "replaced": false, "sha256": "d4bce73a8ce8400ce87b7f617730aedb6d04894166b50245eb8e0d3cea5df26f", "sheets": [{"name": "Devis", "rows": 8, "formulas": 1}, {"name": "Synthèse", "rows": 4, "formulas": 3}, {"name": "Hypothèses", "rows": 1, "formulas": 0}], "warnings": []}</code></pre>
+<div class="tableau"><table class="lignes">
+<tbody>
+<tr><td><code>written: true</code></td><td>Le classeur a été écrit. <code>bytes</code> : sa taille.</td></tr>
+<tr><td><code>sha256</code></td><td>L'empreinte du fichier. Une même description donne le même fichier, octet pour octet : l'empreinte au journal permet de vérifier un classeur.</td></tr>
+<tr><td><code>sheets</code></td><td>Les onglets, avec leurs nombres de lignes et de formules.</td></tr>
+<tr><td><code>warnings</code></td><td>Ce que l'outil signale sans refuser : un pourcentage écrit 15 au lieu de 0,15, un nombre écrit en dur dans une formule plutôt que dans une cellule d'hypothèse.</td></tr>
+</tbody>
+</table></div>
+<p>Ouvrez <code>sortie/suivi-devis-septembre.xlsx</code> dans Excel ou LibreOffice :</p>
+<ul>
+<li><strong>Devis</strong> : les 8 devis de l'export, les dates centrées au format de votre ordinateur (03/09/2026), les montants en euros, et la ligne « Total » : 15 899,63 €. L'en-tête reste visible quand on fait défiler, avec un filtre sur chaque colonne.</li>
+<li><strong>Synthèse</strong> : 1 225,00 € acceptés, 11 398,83 € en attente (en vert : des formules qui lisent un autre onglet), et le chiffre d'affaires espéré, 4 559,53 €, en gras. La cellule « Objectif HT du mois » attend la saisie de Jean.</li>
+<li><strong>Hypothèses</strong> : le taux de signature, 40,0 %, avec sa source en commentaire. Changez-le : le chiffre d'affaires espéré suit.</li>
+</ul>
+<p>À l'impression ou en PDF, chaque onglet tient sur une page de large ; l'onglet Devis, le plus large, passe en paysage.</p>
+
+<div class="encadre piege"><p class="encadre-titre">Piège : une formule écrite en français</p>
+<p>Dans un Excel français, on écrit <code>=SOMME.SI(Devis!F2:F9;"accepté";Devis!E2:E9)</code>. Dans le fichier, c'est la forme anglaise qui est stockée : un modèle qui écrit la forme française produirait un classeur plein de <code>#NOM?</code>. L'outil refuse l'appel avant d'écrire, et dit quoi corriger :</p>
+<pre><code>Classeur refusé :
+- Synthèse!B2 : séparateur « ; » dans '=SOMME.SI(Devis!F2:F9;"accepté";Devis!E2:E9)' — les formules s'écrivent en anglais, arguments séparés par « , »
+- Synthèse!B2 : fonction française SOMME.SI dans '=SOMME.SI(Devis!F2:F9;"accepté";Devis!E2:E9)' — écrire SUMIF</code></pre>
+<p>C'est un résultat en erreur, comme celui d'un outil Python qui lève une <code>ToolError</code> (<a href="module-02.html#ex-2-2">module 2</a>) : le run continue, et le modèle corrige au tour suivant. Sont refusés de la même façon un onglet inconnu ou mal cité, une fonction hors de la liste permise, et les fonctions à débordement (<code>XLOOKUP</code>, <code>FILTER</code>, <code>UNIQUE</code>…).</p></div>
+
+<h4>Vérifier les formules avec LibreOffice</h4>
+<p>Une formule bien écrite peut encore donner une erreur une fois calculée : <code>#DIV/0!</code> si un dénominateur est vide. Si LibreOffice est installé, l'outil peut faire calculer le classeur <strong>avant</strong> de l'écrire :</p>
+<pre><code><span class="p">$ </span>sudo apt install libreoffice-calc-nogui</code></pre>
+<figure class="code"><figcaption>agents/assistant.yaml (l'outil <code>loom.excel</code>)</figcaption>
+<pre><code>      - name: sortie
+        path: sortie
+        rights: [write]
+<span class="aj">    recalc: true</span></code></pre></figure>
+<p class="legende-aj"><span></span>ligne ajoutée</p>
+<pre><code><span class="p">$ </span>loom validate | grep -m1 'outil excel : recalcul'
+      outil excel : recalcul : /usr/bin/soffice (au plus 60 s)
+<span class="p">$ </span>loom run assistant "Prépare le suivi des devis de septembre pour le comptable." --session suivi-septembre
+Le suivi de septembre est dans sortie/suivi-devis-septembre.xlsx : les 8 devis, leur total, et la synthèse avec le chiffre d'affaires espéré.
+
+Statut     : completed · itérations : 2 · tokens : 8963/359 · coût : 0.0323 $
+Run        : 01a17840-b1bf-72a9-b30f-68c062e3233c
+<span class="p">$ </span>loom inspect 01a17840-b1bf-72a9-b30f-68c062e3233c --session suivi-septembre --full | grep résultat
+      · résultat  : {"path": "sortie/suivi-devis-septembre.xlsx", "bytes": 8999, "written": false, "sha256": "d4bce73a8ce8400ce87b7f617730aedb6d04894166b50245eb8e0d3cea5df26f", "sheets": [{"name": "Devis", "rows": 8, "formulas": 1}, {"name": "Synthèse", "rows": 4, "formulas": 3}, {"name": "Hypothèses", "rows": 1, "formulas": 0}], "warnings": [], "recalc": {"formulas": 4, "errors": 0}}</code></pre>
+<div class="tableau"><table class="lignes">
+<tbody>
+<tr><td><code>recalc: {formulas: 4, errors: 0}</code></td><td>LibreOffice a calculé une copie du classeur : aucune des 4 formules n'est en erreur. Une seule en erreur, et l'appel échoue avec les cellules en cause ; rien n'est écrit.</td></tr>
+<tr><td><code>written: false</code></td><td>Le même classeur était déjà là, octet pour octet : rien n'est réécrit. C'est aussi ce qui rend l'appel sûr à refaire après une reprise (<a href="module-08.html">module 8</a>).</td></tr>
+</tbody>
+</table></div>
+<p>Le fichier livré reste celui de l'outil, sans les valeurs calculées par LibreOffice, qui réécrirait sa mise en forme : Excel recalcule tout à l'ouverture. Le recalcul prend une à deux secondes de plus.</p>
+<div class="encadre piege"><p class="encadre-titre">Piège : LibreOffice installé, mais « introuvable »</p>
+<pre><code>Configuration : Agent 'assistant', outil 'loom.excel' : recalc: true, mais LibreOffice est introuvable (soffice) — l'installer, donner son chemin dans 'soffice', ou retirer recalc</code></pre>
+<p>L'outil cherche la commande <code>soffice</code>. Le LibreOffice d'Ubuntu installé en <strong>snap</strong> n'en fournit pas (<code>which soffice</code> ne répond rien, <code>which libreoffice</code> répond <code>/snap/bin/libreoffice</code>), et donner son chemin dans <code>soffice</code> ne suffit pas : isolé du reste du système, le snap ne voit pas la copie du classeur à calculer. Installez la version <code>apt</code> ci-dessus, qui peut cohabiter avec le snap.</p></div>
+
+<h4>Mettre à jour les références</h4>
+<p>Comme à l'<a href="#ex-15-4">exercice 15.4</a>, l'orchestrateur voit maintenant un outil de plus, un prompt plus long et un script différent : le filet du module 14 le remarque.</p>
+<pre><code><span class="p">$ </span>pytest -q --tb=no
+F......                                                                  [100%]
+=========================== short test summary info ============================
+FAILED tests/test_non_regression.py::test_les_runs_de_reference_se_rejouent
+1 failed, 6 passed in 6.32s
+<span class="p">$ </span>loom eval evals/non-regression.yaml
+(heure) WARNING  loom_ia.replay.runner — Rejeu du run 01a1783f-a03e-7163-a211-d042c8d689dc : divergence, appel de modèle n°1 (main au journal) : la requête a changé — ce …
+(heure) WARNING  loom_ia.replay.runner — Rejeu du run 01a1783f-a326-7345-b7be-f8a0c53aa193 : divergence, appel de modèle n°1 (main au journal) : la requête a changé — ce …
+Suite      : non-regression — agent assistant, 1 cas, 1 variante(s), 1 répétition(s) par cas
+
+Variante base (config de base) — 0/1 cas réussi(s), 0.000000 $ de runs, 0.000000 $ de juge
+  ÉCHEC    journaux-de-reference (0/2 run(s) rejoué(s) à l'identique)
+      journaux/actuel--relance-martin--1.jsonl, run 01a1783f-a03e-7163-a211-d042c8d689dc :
+        ✗ se rejoue à l'identique — appel de modèle n°1 (main au journal) : la requête a changé ; ce qui diffère : le prompt système, les outils proposés, les réglages (choix d'outil, plafond de tokens, paramètres, schéma de sortie)
+      journaux/actuel--relance-martin--2.jsonl, run 01a1783f-a326-7345-b7be-f8a0c53aa193 :
+        ✗ se rejoue à l'identique — appel de modèle n°1 (main au journal) : la requête a changé ; ce qui diffère : le prompt système, les outils proposés, les réglages (choix d'outil, plafond de tokens, paramètres, schéma de sortie)
+
+Bilan      : 0/2 run(s) réussi(s), 0.000000 $ dépensé(s)
+Verdict    : des attendus tombent, ou des runs n'ont pas été joués</code></pre>
+<p>Le changement est voulu, et les six autres tests passent : régénérez les journaux de référence.</p>
+<pre><code><span class="p">$ </span>loom eval evals/comparaison.yaml --variant actuel --export evals/journaux
+Suite      : comparaison — agent assistant, 1 cas, 1 variante(s), 2 répétition(s) par cas
+Juge       : JUGE_EVAL
+Plafond    : 1.0000 $
+
+Variante actuel (config de base) — 1/1 cas réussi(s), 0.115334 $ de runs, 0.001740 $ de juge
+  ok       relance-martin (2/2)
+
+Bilan      : 2/2 run(s) réussi(s), 0.117074 $ dépensé(s)
+Verdict    : tout passe
+<span class="p">$ </span>pytest -q
+.......                                                                  [100%]
+7 passed in 5.97s</code></pre>
+
+<h4>À retenir</h4>
+<ul>
+<li>Le modèle décrit ce que <strong>sont</strong> les données (types de colonne, rôles, formules) ; l'outil décide de leur apparence. Les classeurs se ressemblent d'un mois à l'autre, quel que soit le modèle.</li>
+<li>L'outil n'atteint que les dossiers déclarés, avec leurs droits ; le modèle ne voit jamais leurs chemins réels. Retirez l'outil aux clients qui ne doivent pas y toucher.</li>
+<li>Les données volumineuses passent par un fichier (<code>data</code>), pas par l'appel du modèle : moins de tokens, et pas de recopie.</li>
+<li>Un classeur mal décrit est refusé avant d'être écrit ; avec <code>recalc</code>, une formule qui ne se calcule pas aussi.</li>
+</ul>
+
+<div class="encadre reel"><p class="encadre-titre">Variante vrai modèle</p>
+<p>Avec <code>model: HAIKU</code> (<a href="module-01.html#vrai-modele">rappel</a>), Claude écrit lui-même la description du classeur, à partir de la demande et de la description de l'outil, qui lui explique les types, les rôles et les règles des formules. Relisez son appel avec <code>loom inspect --full</code> : s'il a écrit une formule en français, vous verrez l'appel refusé, puis corrigé au tour suivant.</p></div>
+</section>
 <h2 id="bilan">Bilan du module</h2>
-<p>L'assistant consulte le calendrier de l'entreprise, fourni par un paquet que d'autres projets peuvent installer. L'atelier a sa configuration, son catalogue et son approbation ; il ne lui manque qu'une VM.</p>
+<p>L'assistant consulte le calendrier de l'entreprise, fourni par un paquet que d'autres projets peuvent installer, et prépare le suivi des devis en classeur Excel avec <code>loom.excel</code>. L'atelier a sa configuration, son catalogue et son approbation ; il ne lui manque qu'une VM.</p>
 <figure class="code"><figcaption>dans le dossier parent</figcaption>
 <pre><code>calendrier-artisan/          le paquet de la source calendrier
 ├── pyproject.toml           + le point d'entrée loom_ia.tools
 └── src/calendrier_artisan/__init__.py
 loom_v2/firecracker/         make_vm.sh, service/, jailer-run.sh (dépôt, v2.0.11)
 plomberie-dupont/
-├── loom.yaml                + tool_sources: calendrier ; + la scène « jour ouvré » de SIMULE
-├── agents/assistant.yaml    + - source: calendrier
+├── loom.yaml                + tool_sources: calendrier ; + les scènes « jour ouvré » et « suivi des devis » de SIMULE ;
+│                              + excel retiré au Chauffage Martin
+├── agents/assistant.yaml    + - source: calendrier ; + - python: loom.excel
 ├── conges.json              les congés de l'entreprise
-├── pyproject.toml           + calendrier-artisan (éditable)
+├── donnees/                 devis-septembre.csv, l'export du logiciel de devis
+├── sortie/                  les classeurs écrits par loom.excel (ignoré par git)
+├── pyproject.toml           + calendrier-artisan (éditable) ; + l'extra office, loom-ia 2.0.13
 ├── evals/journaux/          régénérés
 ├── atelier/
 │   ├── loom.yaml            la source forge (vm_dir ~/vms/dupont-forge, approbation de forge)
@@ -2391,7 +2618,7 @@ version = "0.1.0"
 requires-python = "&gt;=3.14"
 dependencies = [
     "calendrier-artisan",
-    "loom-ia[anthropic,crypto,http,mcp,openai,otel,postgres,rabbitmq,redis,sqlite]&gt;=2.0.11",
+    "loom-ia[anthropic,crypto,http,mcp,office,openai,otel,postgres,rabbitmq,redis,sqlite]&gt;=2.0.13",
 ]
 
 [dependency-groups]
@@ -2465,7 +2692,7 @@ telemetry:
 
 storage:
   events: {backend: jsonl, path: data}</code></pre></figure>
-<p>Le fichier <code>loom.yaml</code> du projet est celui de l'exercice 15.2, et <code>agents/assistant.yaml</code> aussi (sans <code>required</code>).</p>
+<p>Le fichier <code>loom.yaml</code> du projet est celui de l'exercice 15.2, avec la scène « suivi des devis » de SIMULE et l'outil <code>excel</code> retiré au Chauffage Martin (15.9). <code>agents/assistant.yaml</code> est celui de l'exercice 15.2 (sans <code>required</code>), avec l'outil <code>loom.excel</code> de l'exercice 15.9.</p>
 
 <h2 id="fin-formation">Bilan de la formation</h2>
 <p>Parti d'un dossier vide et d'un modèle simulé, l'assistant de la Plomberie Dupont est devenu, module après module, un agent complet :</p>
@@ -2479,7 +2706,7 @@ storage:
 <tr><td><a href="module-10.html">10</a> et <a href="module-11.html">11</a></td><td>S'ouvrir à d'autres programmes (Python, REST, MCP) et se déclencher tout seul.</td></tr>
 <tr><td><a href="module-12.html">12</a></td><td>Servir plusieurs clients sans mélanger leurs données.</td></tr>
 <tr><td><a href="module-13.html">13</a> et <a href="module-14.html">14</a></td><td>Être observé, rejoué, évalué et protégé contre les régressions.</td></tr>
-<tr><td>15</td><td>Recevoir des outils d'un paquet, et en forger dans une VM isolée.</td></tr>
+<tr><td>15</td><td>Recevoir des outils d'un paquet, en forger dans une VM isolée, et écrire un classeur Excel.</td></tr>
 </tbody>
 </table></div>
 <p>Toutes les fonctions de loom ont été vues au moins une fois ; la <a href="matrice.html">matrice des fonctions</a> dit où retrouver chacune, et l'<a href="reference.html">annexe de référence</a> rassemble les commandes et les clés de configuration.</p>

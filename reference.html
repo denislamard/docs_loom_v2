@@ -541,6 +541,17 @@ loom reject  RUN_ID [--call CALL_ID] [--by NOM] [--reason MOTIF] [--session SESS
 <tr><td><code>tools</code></td><td>Surcharges par outil (MCP ou source) pour cet agent.</td><td><code>{outil: {…}}</code></td><td><code>{}</code></td></tr>
 </tbody>
 </table></div>
+<p>L'outil fourni <code>loom.excel</code> (extra <code>office</code>, loom-ia 2.0.13) prend ses paramètres sur sa référence, à côté des surcharges ; <code>approval</code>, <code>side_effects</code> et <code>idempotent</code> y sont refusés, les droits des dossiers les expriment. <a href="module-15.html#ex-15-9">Module 15</a>.</p>
+<div class="tableau"><table>
+<thead><tr><th>Clé</th><th>Rôle</th><th>Valeurs</th><th>Défaut</th></tr></thead>
+<tbody>
+<tr><td><code>folders</code></td><td>Les dossiers que l'outil peut atteindre : <code>name</code> (ce que voit le modèle), <code>path</code> (absolu, ou relatif au dossier de <code>loom.yaml</code>), <code>rights</code>. Au moins un dossier avec <code>write</code>.</td><td>liste</td><td><strong>obligatoire</strong></td></tr>
+<tr><td><code>folders[].rights</code></td><td><code>read</code> (lire un CSV ou un JSON), <code>write</code> (créer un classeur), <code>overwrite</code> (remplacer un classeur ; exige <code>write</code>). En liste, <code>overwrite</code> attend une approbation ; en table, chaque droit dit la sienne (<code>never</code> ou <code>always</code>). <code>delete</code> est refusé.</td><td>liste ou table</td><td>—</td></tr>
+<tr><td><code>timezone</code></td><td>Fuseau où passe une date-heure qui en porte un.</td><td>nom IANA</td><td><code>Europe/Paris</code></td></tr>
+<tr><td><code>recalc</code></td><td>Faire calculer le classeur par LibreOffice avant de l'écrire : une formule en erreur fait échouer l'appel.</td><td>booléen</td><td><code>false</code></td></tr>
+<tr><td><code>soffice</code> / <code>recalc_timeout</code></td><td>Avec <code>recalc</code> : l'exécutable de LibreOffice, et son délai en secondes.</td><td>chemin / nombre</td><td><code>soffice</code> du <code>PATH</code> / <code>60</code></td></tr>
+</tbody>
+</table></div>
 
 <h3 id="ag-roles"><code>roles</code> : rôles délégués</h3>
 <p>Appelés par l'orchestrateur comme des outils ; ils ne reçoivent que leurs arguments et le contexte déclaré. <a href="module-06.html#ex-6-1">Module 6</a>.</p>

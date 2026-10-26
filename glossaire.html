@@ -116,7 +116,7 @@
 <h2 id="g-outils">Les outils</h2>
 <dl class="termes">
 <dt>Outil</dt><dd>Une action que le modèle peut demander : lire une page, calculer un prix, chercher un devis. C'est loom qui l'exécute et rend le résultat au modèle. <a href="module-01.html#ex-1-8">Module 1</a>.</dd>
-<dt>Outil fourni</dt><dd>Un outil livré avec loom-ia, désactivé tant qu'un agent ne le demande pas, par exemple <code>loom.fetch_page</code> qui lit une page web publique. <a href="module-01.html#ex-1-8">Module 1</a>.</dd>
+<dt>Outil fourni</dt><dd>Un outil livré avec loom-ia, désactivé tant qu'un agent ne le demande pas, par exemple <code>loom.fetch_page</code> qui lit une page web publique, ou <code>loom.excel</code> qui écrit un classeur Excel. <a href="module-01.html#ex-1-8">Module 1</a>, <a href="module-15.html#ex-15-9">module 15</a>.</dd>
 <dt>Outil Python</dt><dd>Une fonction de votre code décorée par <code>@tool</code> ; loom en déduit le schéma des arguments, et la docstring devient la description lue par le modèle. <a href="module-02.html#ex-2-1">Module 2</a>.</dd>
 <dt>Lot</dt><dd>Plusieurs appels d'outils demandés dans une même réponse du modèle : ils s'exécutent ensemble, et les résultats repartent dans l'ordre des appels. <a href="module-02.html#ex-2-5">Module 2</a>.</dd>
 <dt>Surcharge d'outil</dt><dd>Un réglage d'un outil (délai, approbation, seuil de mise de côté…) redéfini dans la configuration de l'agent, sans toucher au code de l'outil. <a href="module-02.html#ex-2-3">Module 2</a>.</dd>
